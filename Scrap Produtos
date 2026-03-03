@@ -1,0 +1,109 @@
+import time
+import requests
+from bs4 import BeautifulSoup
+
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+
+# ==============================
+# 1️⃣ EXTRAIR PRODUTOS
+# ==============================
+
+print("Baixando página do site...")
+
+url = "https://www.comprasparaguai.com.br/busca/?q=iphone"
+headers = {"User-Agent": "Mozilla/5.0"}
+
+response = requests.get(url, headers=headers)
+soup = BeautifulSoup(response.text, "html.parser")
+
+produtos = []
+
+for item in soup.select(".list-item")[:5]:
+    nome = item.select_one(".item-title")
+    preco = item.select_one(".item-price")
+
+    if nome and preco:
+        produtos.append(f"{nome.text.strip()} - {preco.text.strip()}")
+
+if not produtos:
+    produtos = ["Nenhum produto encontrado."]
+
+print("Produtos extraídos com sucesso!")
+
+# Montar mensagem como lista de linhas
+linhas = ["Produtos Atualizados:", ""]
+
+for p in produtos:
+    linhas.append(f"- {p}")
+
+# ==============================
+# 2️⃣ ABRIR WHATSAPP LOGADO
+# ==============================
+
+options = webdriver.ChromeOptions()
+options.add_argument("--user-data-dir=/home/felipe/projeto_whatsapp/perfil")
+options.add_argument("--start-maximized")
+
+driver = webdriver.Chrome(options=options)
+driver.get("https://web.whatsapp.com")
+
+wait = WebDriverWait(driver, 60)
+
+print("Aguardando WhatsApp carregar...")
+
+wait.until(
+    EC.presence_of_element_located((By.XPATH, '//div[@contenteditable="true"]'))
+)
+
+# ==============================
+# 3️⃣ ABRIR GRUPO VIA BUSCA
+# ==============================
+
+nome_grupo = "Compras"
+
+search_box = driver.find_element(By.XPATH, '//div[@contenteditable="true"]')
+search_box.click()
+time.sleep(1)
+search_box.clear()
+search_box.send_keys(nome_grupo)
+time.sleep(2)
+search_box.send_keys(Keys.ENTER)
+
+print("Grupo aberto!")
+
+time.sleep(3)
+
+# ==============================
+# 4️⃣ ENVIAR MENSAGEM CORRETAMENTE
+# ==============================
+
+try:
+    # sempre pegar o último campo (campo de mensagem)
+    campos = driver.find_elements(By.XPATH, '//div[@contenteditable="true"]')
+    campo_msg = campos[-1]
+
+    campo_msg.click()
+    time.sleep(1)
+
+    for i, linha in enumerate(linhas):
+        campo_msg.send_keys(linha)
+
+        # se não for a última linha → quebra linha
+        if i < len(linhas) - 1:
+            campo_msg.send_keys(Keys.SHIFT + Keys.ENTER)
+
+    time.sleep(1)
+    campo_msg.send_keys(Keys.ENTER)
+
+    print("Mensagem enviada com sucesso!")
+
+except Exception as e:
+    print("Erro ao enviar:", e)
+
+print("WhatsApp continuará aberto.")
+while True:
+    time.sleep(60)
